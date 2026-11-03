@@ -4,12 +4,19 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+type loginRequest struct{
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
 
 var DB *gorm.DB
 
@@ -33,6 +40,7 @@ func InitDB(){
 	}
 
 }
+
 
 func CreateBook(c *gin.Context){
 
@@ -91,4 +99,27 @@ if err:=DB.Delete(&book,c.Param("id")).Error;err != nil{
 	return
 }
 ResponseJson(c,http.StatusOK,"Book delete successfully",nil)
+}
+
+func GenerateJWT(c *gin.Context) {
+	var loginRequest loginRequest
+	if err := c.ShouldBindJSON(&loginRequest); err != nil {
+		ResponseJson(c, http.StatusBadRequest, "Invalid request payload", nil)
+		return
+	}
+	if loginRequest.Username != "admin" || loginRequest.Password != "password" {
+		ResponseJson(c, http.StatusUnauthorized, "Invalid credentials", nil)
+		return
+	}
+	expirationTime := time.Now().Add(15 * time.Minute)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"exp": expirationTime.Unix(),
+	})
+	// Sign the token
+	tokenString, err := token.SignedString(jwtSecret)
+	if err != nil {
+		ResponseJson(c, http.StatusInternalServerError, "Could not generate token", nil)
+		return
+	}
+	ResponseJson(c, http.StatusOK, "Token generated successfully", gin.H{"token": tokenString})
 }
